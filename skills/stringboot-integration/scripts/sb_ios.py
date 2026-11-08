@@ -33,7 +33,7 @@ def _read_text(path: str) -> str:
     return data.decode("utf-8")
 
 
-_ESC = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "'": "'", "\\": "\\", "0": "\0"}
+_ESC = {"n": "\n", "t": "\t", "r": "\r", '"': '"', "'": "'", "\\": "\\"}
 
 
 def parse_strings_file(text: str) -> Iterator[Tuple[str, str]]:
@@ -63,6 +63,11 @@ def parse_strings_file(text: str) -> Iterator[Tuple[str, str]]:
                     if c in "Uu" and re.fullmatch(r"[0-9a-fA-F]{4}", text[i + 2:i + 6]):
                         out.append(chr(int(text[i + 2:i + 6], 16)))
                         i += 6
+                        continue
+                    octal = re.match(r"[0-7]{1,3}", text[i + 1:i + 4])
+                    if octal:
+                        out.append(chr(int(octal.group(0), 8)))
+                        i += 1 + len(octal.group(0))
                         continue
                     out.append(_ESC.get(c, c))
                     i += 2

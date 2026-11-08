@@ -67,13 +67,13 @@ Every read follows: experiment variant → selected language → default languag
 | :--- | :--- | :--- |
 | SwiftUI view | `SBText("key")` | Yes |
 | SwiftUI property | `@StringbootString("key") var title: String` | Yes |
-| SwiftUI modifier | `Text("").stringboot("key")` | Yes |
-| UIKit label/button | `SBLabel(key:)`, `SBButton(key:)`, `label.setStringboot(key:)` | On language changes |
-| UIKit, live edits | `StringProvider.shared.publisher(for: "key")` (Combine) | Yes |
-| Synchronous | `StringProvider.shared.getCached("key")` → `String?` (stored strings only) | No |
+| SwiftUI modifier | `Text("").stringboot("key")`: apply styling **after** it, because it replaces the view | Yes |
+| UIKit (default) | `StringProvider.shared.publisher(for: "key")` (Combine) | Yes |
+| UIKit shortcut | `SBLabel(key:)`, `SBButton(key:)`, `label.setStringboot(key:)` | Only via `StringbootLanguageNotifier` |
+| Synchronous | `StringProvider.shared.getCached("key")` → `String?` (stored Catalogs incl. the default language; no bundle) | No |
 | Async | `await StringProvider.shared.get("key")` | No |
 
-`publisher(for:)` emits the stored value at once, then on every Catalog or language change:
+**UIKit: use `publisher(for:)`.** It emits the stored value at once, then on every Catalog or language change:
 
 ```swift
 StringProvider.shared.publisher(for: "welcome_message")
@@ -82,7 +82,17 @@ StringProvider.shared.publisher(for: "welcome_message")
     .store(in: &cancellables)
 ```
 
-In reused table/collection cells, don't call `setStringboot` on every reuse: each call adds an observer. Set `label.text = StringProvider.shared.getCached(key) ?? NSLocalizedString(key, comment: "")` in `cellForRow`, and reload visible cells when `StringProvider.shared.lastUpdate` changes.
+`SBLabel`, `SBButton` and `setStringboot` load once and then react **only** to `StringbootLanguageNotifier.shared.changeLanguage(to:)`. They don't update on new Catalogs (live edits, or the first download after a fresh install), nor on `setLocale` / `changeLanguage(to:)` / `StringbootLanguageManager.setLanguage`. Use them only on screens shown after the first sync, and switch languages through `StringbootLanguageNotifier` there. Also, `setStringboot` adds an observer on every call, so never call it in reused cells.
+
+**Table and collection cells:** set `label.text = StringProvider.shared.getCached(key) ?? NSLocalizedString(key, comment: "")` in `cellForRow`, and reload visible rows when strings or the language change:
+
+```swift
+StringProvider.shared.$lastUpdate.map { _ in () }
+    .merge(with: StringProvider.shared.$currentLanguage.map { _ in () })
+    .receive(on: DispatchQueue.main)
+    .sink { [weak self] in self?.tableView.reloadData() }
+    .store(in: &cancellables)
+```
 
 **Named placeholders** (`{name}`), for values shared with Android and web:
 
@@ -105,7 +115,7 @@ Use `key-map.json` from the migration. Keep `Localizable.strings` / `Localizable
 | `Text("welcome_message")` (a localized key) | `SBText("welcome_message")` |
 | `Text("Welcome back!")` (English text as the key) | `SBText("welcome_back")` (the new key from key-map.json) |
 | `Text(NSLocalizedString("x", comment: ""))` | `SBText("x")` |
-| `label.text = NSLocalizedString("x", comment: "")` | `label.setStringboot(key: "x")`, or a `publisher(for:)` subscription |
+| `label.text = NSLocalizedString("x", comment: "")` | A `publisher(for: "x")` subscription (or `setStringboot(key:)` on screens shown after the first sync) |
 | `String(localized: "x")` / `NSLocalizedString` in logic | `StringProvider.shared.getCached("x") ?? NSLocalizedString("x", comment: "")` |
 | `String(format: NSLocalizedString("greeting", comment: ""), name)` | `String(format: StringProvider.shared.getCached("greeting") ?? NSLocalizedString("greeting", comment: ""), name)` |
 
@@ -116,7 +126,7 @@ Leave alone:
 - strings from other tables (the SDK's fallback reads only `Localizable`);
 - `LocalizedStringResource` used by App Intents or widgets, unless the user asks.
 
-The bundle fallback uses the **app's** current locale, not the language selected in the SDK. Don't rely on it for in-app language switching.
+The bundle fallback uses the **app's** current locale, not the language selected in the SDK, so don't rely on it for in-app language switching. It also treats a `Localizable` value equal to its key as missing, which matters only with `--keep-keys` when keys are English text.
 
 ## 5. Languages
 
@@ -125,7 +135,7 @@ The bundle fallback uses the **app's** current locale, not the language selected
   2. otherwise the device's preferred language (exact code, then the language part);
   3. otherwise the App's default.
 - `StringProvider.shared.clearLanguageOverride()` returns to automatic selection, for example from a "Use device language" option.
-- `StringbootLanguageManager` (SwiftUI) and `StringbootLanguageNotifier.shared.changeLanguage(to:)` (UIKit) switch language. `SBText`/`SBLabel` update.
+- `StringbootLanguageManager` (SwiftUI) switches language; `SBText`, `@StringbootString`, `.stringboot()` and `publisher(for:)` follow. In UIKit, `SBLabel`/`SBButton`/`setStringboot` follow only `StringbootLanguageNotifier.shared.changeLanguage(to:)`.
 - Active languages: `StringbootLanguageManager().availableLanguages` or `await StringProvider.shared.getAvailableLanguagesFromServer()` (`code`, `name`, `nativeName`, `isRightToLeft`). Codes match exactly (`pt-BR`).
 
 ## 6. Release builds, privacy and pinning
@@ -157,5 +167,6 @@ The bundle fallback uses the **app's** current locale, not the language selected
 | `??key??` | Key missing in Stringboot (selected and default language) and in `Localizable`; or a first launch offline. Keys are case-sensitive. |
 | `isTokenRejected` / `.invalidToken` | Not a valid Client Token of this App. Stored strings stay; fix the token and call `initialize` again. |
 | Edits don't appear | They take up to about two minutes. Call `startPeriodicSync()` for long-lived screens; `await refreshFromNetwork()` checks now. |
-| UIKit text doesn't update on edits | `setStringboot`/`SBLabel` update on language changes only. Use `publisher(for:)`. |
+| UIKit text doesn't update (edits, first download, or language change) | `setStringboot`/`SBLabel` only react to `StringbootLanguageNotifier`. Use `publisher(for:)`. |
+| `.stringboot()` loses its font/colour | Apply modifiers after `.stringboot(...)`. |
 | Requests fail through Charles/Proxyman | Pinning is on. Pass `false` in Debug. |

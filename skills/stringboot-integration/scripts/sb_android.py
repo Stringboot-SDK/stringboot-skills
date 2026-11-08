@@ -9,6 +9,16 @@ from typing import List, Optional, Tuple
 from sb_common import Entry, Skipped
 
 _OLD_CODES = {"iw": "he", "in": "id", "ji": "yi"}
+# ISO 639-1 codes (plus Android's legacy iw/in/ji). Two/three-letter folder qualifiers that aren't
+# languages (values-car, values-hdr) must not become language codes.
+_ISO_639_1 = set("""aa ab ae af ak am an ar as av ay az ba be bg bh bi bm bn bo br bs ca ce ch co cr cs cu
+cv cy da de dv dz ee el en eo es et eu fa ff fi fj fo fr fy ga gd gl gn gu gv ha he hi ho hr ht hu hy hz
+ia id ie ig ii ik in io is it iu iw ja ji jv ka kg ki kj kk kl km kn ko kr ks ku kv kw ky la lb lg li ln
+lo lt lu lv mg mh mi mk ml mn mr ms mt my na nb nd ne ng nl nn no nr nv ny oc oj om or os pa pi pl ps pt
+qu rm rn ro ru rw sa sc sd se sg si sk sl sm sn so sq sr ss st su sv sw ta te tg th ti tk tl tn to tr ts
+tt tw ty ug uk ur uz ve vi vo wa wo xh yi yo za zh zu""".split())
+# Three-letter codes Android accepts as old-style qualifiers
+_ISO_639_3_COMMON = {"fil", "haw", "yue", "ast", "ckb", "kab", "chr", "ceb", "gsw", "nds", "sat", "mni"}
 _ALLOWED_CHILD_TAGS = {"g"}  # <xliff:g> wraps placeholders; its text is kept
 _XLIFF = "{urn:oasis:names:tc:xliff:document:1.2}"
 
@@ -28,7 +38,7 @@ def language_for_values_dir(dirname: str, default_language: str) -> Optional[str
         parts = first[2:].split("+")
         parts[0] = _OLD_CODES.get(parts[0], parts[0])
         return "-".join(parts)
-    if not re.fullmatch(r"[a-z]{2,3}", first):
+    if not (first in _ISO_639_1 or first in _ISO_639_3_COMMON):
         return None
     lang = _OLD_CODES.get(first, first)
     if len(quals) > 1 and re.fullmatch(r"r[A-Z]{2}|r\d{3}", quals[1]):
@@ -107,7 +117,10 @@ def read_android(res_dirs: List[str], default_language: str) -> Tuple[List[Entry
                 except ET.ParseError as e:
                     skipped.append(Skipped("android", "*", lang or dirname, path, "XML parse error: %s" % e))
                     continue
-                cdata_names = set(re.findall(r'<string[^>]*name="([^"]+)"[^>]*>\s*<!\[CDATA\[', raw_file))
+                html_names = {m.group(1) for m in re.finditer(
+                    r'<string(?=[\s>])[^>]*\bname="([^"]+)"[^>]*>(.*?)</string>', raw_file, re.S)
+                    if "<![CDATA[" in m.group(2) or "&lt;" in m.group(2)}
+                seen_products = set()
                 for el in root:
                     key = el.get("name", "")
                     if el.tag in ("plurals", "string-array", "array", "integer-array"):
@@ -123,9 +136,15 @@ def read_android(res_dirs: List[str], default_language: str) -> Tuple[List[Entry
                     if el.get("translatable") == "false":
                         skipped.append(Skipped("android", key, lang, path, 'translatable="false"; keep it local'))
                         continue
-                    if key in cdata_names:
-                        skipped.append(Skipped("android", key, lang, path, "CDATA/HTML value; keep it local"))
+                    if key in html_names:
+                        skipped.append(Skipped("android", key, lang, path, "CDATA/escaped HTML value; keep it local"))
                         continue
+                    if (key, lang) in seen_products:
+                        skipped.append(Skipped("android", key, lang, path,
+                                               'another product="%s" variant; only the first one is uploaded'
+                                               % el.get("product", "")))
+                        continue
+                    seen_products.add((key, lang))
                     text, problem = _element_text(el)
                     if problem:
                         skipped.append(Skipped("android", key, lang, path, problem + "; keep it local"))

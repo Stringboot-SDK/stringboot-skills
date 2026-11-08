@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -33,6 +34,8 @@ class Skipped:
     reason: str
 
 
+_TRANSLIT = str.maketrans({"ß": "ss", "æ": "ae", "Æ": "AE", "ø": "o", "Ø": "O", "œ": "oe", "Œ": "OE",
+                           "ł": "l", "Ł": "L", "đ": "d", "Đ": "D", "þ": "th", "ð": "d"})
 _CAMEL_1 = re.compile(r"([a-z0-9])([A-Z])")
 _CAMEL_2 = re.compile(r"([A-Z]+)([A-Z][a-z])")
 _NON_KEY = re.compile(r"[^a-z0-9]+")
@@ -44,7 +47,9 @@ def normalize_key(raw: str, max_words: Optional[int] = None) -> str:
     Works on every platform: Android resource names allow [a-z0-9_], and iOS/Web accept any key.
     max_words shortens sentence-like keys (iOS apps often use the English text as the key).
     """
-    s = _CAMEL_2.sub(r"\1_\2", raw)
+    s = raw.translate(_TRANSLIT)
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")  # über -> uber
+    s = _CAMEL_2.sub(r"\1_\2", s)
     s = _CAMEL_1.sub(r"\1_\2", s)
     s = s.lower()
     s = _NON_KEY.sub("_", s).strip("_")
@@ -69,15 +74,16 @@ def _short_hash(text: str) -> str:
 
 
 # Stringboot SDKs unescape, in this order: \n \t \r \" \' \\
-_SDK_UNESCAPED_AFTER_BACKSLASH = set("ntr\"'\\")
+_UNREPRESENTABLE_AFTER_BACKSLASH = set("ntr")   # a literal backslash before these can't survive
+_DOUBLE_BEFORE = set("\"'\\")                    # a literal backslash before these is stored doubled
 
 
 def encode_for_stringboot(display: str) -> (str, Optional[str]):
     """Encode display text so the SDKs show it unchanged after unescaping.
 
     Returns (stored_value, warning). Newlines/tabs/CRs become \\n \\t \\r. A literal backslash
-    followed by n, t, r, quote or backslash can't round-trip through the SDK unescaping; we keep it
-    and return a warning so a human can check it.
+    before a quote, apostrophe or backslash is doubled so it survives. A literal backslash before
+    n, t or r can't be represented; it's kept and a warning is returned for a human to check.
     """
     warning = None
     out = []
@@ -90,9 +96,13 @@ def encode_for_stringboot(display: str) -> (str, Optional[str]):
             out.append("\\r")
         elif ch == "\\":
             nxt = display[i + 1] if i + 1 < len(display) else ""
-            if nxt in _SDK_UNESCAPED_AFTER_BACKSLASH:
-                warning = "contains a literal backslash before n/t/r/quote/backslash; check the value in the dashboard"
-            out.append(ch)
+            if nxt and nxt in _UNREPRESENTABLE_AFTER_BACKSLASH:
+                warning = "contains a literal backslash before n/t/r, which the SDKs turn into a control character"
+                out.append(ch)
+            elif nxt and nxt in _DOUBLE_BEFORE:
+                out.append("\\\\")
+            else:
+                out.append(ch)
         else:
             out.append(ch)
     return "".join(out), warning
@@ -100,12 +110,16 @@ def encode_for_stringboot(display: str) -> (str, Optional[str]):
 
 PRINTF = re.compile(r"%(?:\d+\$)?[-#+ 0,(]*\d*(?:\.\d+)?(?:hh|h|ll|l|L|q|j|z|t)?[@dDiuUxXoOfFeEgGcCsSaAp%]")
 NAMED = re.compile(r"\{\{?\s*([A-Za-z_][\w.]*)\s*\}?\}")
-ICU_COMPLEX = re.compile(r"\{\s*[A-Za-z_]\w*\s*,\s*(plural|select|selectordinal)\s*,", re.I)
+# ICU arguments with a type ({n, plural, ...}, {d, date}, {a, number, ::currency/EUR}) and i18next
+# formatting ({{- name}}, {{date, datetime}}) need a formatter the SDKs don't have.
+ICU_COMPLEX = re.compile(r"\{\s*[A-Za-z_][\w.]*\s*,\s*[A-Za-z]")
+I18NEXT_COMPLEX = re.compile(r"\{\{\s*-|\{\{\s*[\w.]+\s*,")
+VUE_PIPE_PLURAL = re.compile(r"\s\|\s")
 
 
 def placeholder_style(value: str) -> Optional[str]:
     """'printf', 'named', 'icu' (plural/select), or None."""
-    if ICU_COMPLEX.search(value):
+    if ICU_COMPLEX.search(value) or I18NEXT_COMPLEX.search(value):
         return "icu"
     if any(m.group(0) != "%%" for m in PRINTF.finditer(value)):
         return "printf"

@@ -6,7 +6,7 @@ import os
 import re
 from typing import List, Optional, Tuple
 
-from sb_common import Entry, Skipped, placeholder_style, to_named_placeholders
+from sb_common import VUE_PIPE_PLURAL, Entry, Skipped, placeholder_style, to_named_placeholders
 
 _LANG = re.compile(r"^[a-z]{2,3}([-_][A-Za-z]{2,4})?([-_][A-Z]{2}|[-_]\d{3})?$")
 _DEFAULT_NAMESPACES = {"translation", "messages", "common", "index", "default"}
@@ -96,7 +96,12 @@ def read_web(paths: List[str], explicit: List[str]) -> Tuple[List[Entry], List[S
             style = placeholder_style(value)
             if style == "icu":
                 skipped.append(Skipped("web", key, lang, path,
-                                       "ICU plural/select; split into separate keys or keep it local"))
+                                       "ICU/i18next formatting (plural, select, number, date, {{- }}); "
+                                       "the SDK doesn't format; keep it local or split it into keys"))
+                continue
+            if VUE_PIPE_PLURAL.search(value):
+                skipped.append(Skipped("web", key, lang, path,
+                                       "looks like a vue-i18n pipe plural (a | b); keep it local or split it"))
                 continue
             entry = Entry("web", key, lang, to_named_placeholders(value), path)
             if _PLURAL_SUFFIX.search(key):

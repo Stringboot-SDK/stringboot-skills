@@ -14,4 +14,9 @@
     <string name="settings.title">Settings</string>
     <plurals name="items"><item quantity="one">%d item</item><item quantity="other">%d items</item></plurals>
     <string-array name="colors"><item>Red</item></string-array>
+    <string name="mid_cdata">Hello <![CDATA[<b>x</b>]]></string>
+    <string name="escaped_html">&lt;b>bold&lt;/b></string>
+    <string name="tablet_aware" product="tablet">Tablet text</string>
+    <string name="tablet_aware" product="default">Phone text</string>
+    <string name="win_path">C:\\Users\\me</string>
 </resources>

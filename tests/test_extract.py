@@ -44,15 +44,20 @@ def main():
         ("welcome_back", "en"): "Welcome back!",                # sentence key without en entry
         ("welcome_back", "fr"): "Bon retour !",                 # UTF-16 .strings
         ("home_subtitle", "en"): "Hi {name}",                   # {{name}} -> {name}
+        ("tablet_aware", "en"): "Tablet text",                  # first product variant wins
+        ("win_path", "en"): "C:\\Users\\me",                    # literal backslashes kept
+        ("octal", "en"): "a\\nb",                               # .strings octal \012 = newline
+        ("ueber_grosse", "en"): "Size",                         # NFKD + ß transliteration
     }
     for k, v in checks.items():
         assert values.get(k) == v, (k, values.get(k), v)
     keys = {k for k, _ in values}
     for absent in ("app_name", "ref", "bold", "cdata", "items", "colors", "brand", "items_count", "tags",
-                   "cart_summary", "count"):
+                   "cart_summary", "count", "mid_cdata", "escaped_html", "price", "dash", "pipe"):
         assert absent not in keys, absent
     assert all(re.fullmatch(r"[a-z][a-z0-9_]*", k) for k in keys), keys
     assert len(rows) == len(values), "duplicate key+language rows"
+    assert not any(l == "car" for _, l in values), "values-car is not a language"
     assert rows[0][2] == "en", "default language must come first"
     report = open(os.path.join(work, "out", "report.md"), encoding="utf-8").read()
     assert "Conflicts (2)" in report and "printf placeholders" in report

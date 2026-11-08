@@ -50,7 +50,13 @@ Read the platform reference and follow it:
 - iOS / macOS: [references/ios.md](references/ios.md)
 - Web (vanilla, React, Next.js, Vue): [references/web.md](references/web.md)
 
-Initialize once, at app start-up. Prefer the reactive APIs (Android `getFlow` / `TextView.stringboot()` / tags; iOS `SBText` / `@StringbootString` / `publisher`; web `useString` / `watch`). They show the first sync and live edits without a restart, while one-shot reads don't update.
+Initialize once, at app start-up. Prefer the reactive APIs: they show the first sync and live edits without a restart, while one-shot reads don't update.
+
+- **Android:** XML tags, `TextView.stringboot()` called once per view, `getFlow`.
+- **iOS:** `SBText`, `@StringbootString`, and `publisher(for:)` for UIKit.
+- **Web:** `useString` in React, `watch` re-subscribed on language change in Vue and vanilla JS.
+
+The platform references list each SDK's current pitfalls (RecyclerView rows, `sbTextView`, UIKit labels). Follow their safe patterns.
 
 ### 3. Migrate existing strings (if the app has any)
 
@@ -79,7 +85,7 @@ Tell the user which checks you couldn't run (for example, a device test) instead
 ## Rules that apply everywhere
 
 - **Lookup order:** experiment variant → selected language → the App's default language → local resources (Android `strings.xml`, iOS `Localizable` table; web has none) → `??key??`. `??key??` on screen means the key is missing from all of these.
-- **Keys:** use lower snake_case, `[a-z0-9_]`, starting with a letter. Stringboot accepts `[A-Za-z0-9_.-]`, 1–255 characters, case-sensitive. But Android resource names can't contain dots or hyphens, or start with digits, and the Android/iOS fallbacks look up the local resource by the **same** key. So a key must be identical in Stringboot and in the local files.
+- **Keys:** use lower snake_case, `[a-z0-9_]`, starting with a letter. Stringboot accepts `[A-Za-z0-9_.-]`, 1–255 characters, case-sensitive. But Android resource names can't contain dots or hyphens, or start with digits, and the Android/iOS fallbacks look up the local resource by the **same** key. So a key must be identical in Stringboot and in the local files. The Android fallback maps `.` in a key to `_`, but plain snake_case avoids the question.
 - **Values** are 1–10,000 characters and can't be blank.
 - **No formatting in the SDKs:** they return the stored text. The app formats it. For values shared by all platforms, use named placeholders like `{name}` and a tiny replace helper (in each platform reference). printf values (`%1$s` on Android, `%@` on iOS) can't be shared across platforms, so keep those keys platform-specific.
 - **Escapes:** the SDKs turn `\n`, `\t`, `\r`, `\"`, `\'`, `\\` in values into the characters. FAQ text is Markdown and isn't unescaped.

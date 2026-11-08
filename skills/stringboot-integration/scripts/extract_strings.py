@@ -191,7 +191,7 @@ def main(argv=None):
     ap.add_argument("--language-map", action="append", default=[], metavar="FROM=TO",
                     help="rename a language code to match the App, e.g. pt=pt-BR")
     ap.add_argument("--prefer", choices=PLATFORM_ORDER, default=None,
-                    help="platform whose value wins when the same key differs (default: first platform given)")
+                    help="platform whose value wins when the same key differs (default: android, then ios, then web)")
     ap.add_argument("--keep-keys", action="store_true", help="don't normalize keys")
     ap.add_argument("--rename-local", action="store_true",
                     help="also rename keys in local Android/iOS resource files and Android R.string/@string references")

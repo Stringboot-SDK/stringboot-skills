@@ -33,7 +33,7 @@ def _android(mapping, res_dirs):
     ref_renames = dict(renames)
     for old, new in renames.items():
         ref_renames.setdefault(old.replace(".", "_"), new)
-    name_attr = re.compile(r'(<(?:string|plurals|string-array)\b[^>]*\bname=")([^"]+)(")')
+    name_attr = re.compile(r'(<(?:string|plurals|string-array)(?=[\s>])[^>]*\bname=")([^"]+)(")')
     ref = re.compile(r"(?<![A-Za-z0-9_])(R\.string\.|@string/)([A-Za-z0-9_.]+)\b")
     for res in res_dirs:
         source_set = os.path.dirname(os.path.abspath(res))          # .../src/main

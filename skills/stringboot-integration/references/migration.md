@@ -35,8 +35,8 @@ python3 <skill-dir>/scripts/extract_strings.py \
 | `--web PATH` | A locale JSON file or folder. The language comes from the file name (`en.json`) or folder (`en/translation.json`; other file names become a key prefix, the namespace). |
 | `--web-file LANG=PATH` | A JSON file whose name isn't a language code. |
 | `--language-map FROM=TO` | Rename a language to match the App, e.g. `pt=pt-BR`, `zh-Hans=zh`. Codes must match the App exactly. |
-| `--prefer android\|ios\|web` | Whose value wins when the same key has different text on two platforms (default: first platform found). The other platform's value is uploaded under `<key>_<platform>`. |
-| `--keep-keys` | Don't normalize keys. Use only if every key is already valid on every platform. |
+| `--prefer android\|ios\|web` | Whose value wins when the same key has different text on two platforms (default: Android, then iOS, then web). The other platform's value is uploaded under `<key>_<platform>`. |
+| `--keep-keys` | Don't normalize keys. Use only if every key is already valid on every platform. On iOS, a `Localizable` value equal to its key counts as missing for the fallback. |
 | `--rename-local` | Also rename the keys in local Android/iOS resource files and Android `R.string` / `@string` references (step 4). |
 
 It writes into `--out`:
@@ -99,7 +99,7 @@ python3 <skill-dir>/scripts/extract_strings.py ... --rename-local
 
 This renames:
 
-- **Android:** `<string name="…">` in every `values*` folder, plus `R.string.*` and `@string/*` in `.kt`, `.java` and `.xml` files of the same source set.
+- **Android:** `<string name="…">` in every `values*` folder, plus `R.string.*` and `@string/*` in `.kt`, `.java` and `.xml` files under the module's `src/` (all source sets).
 - **iOS:** keys in `*.lproj/*.strings` (keeping UTF-16 files UTF-16) and in `*.xcstrings`. When a sentence key was also the English text, the English text is kept as a value.
 
 Then handle by hand, using `key-map.json`:
@@ -139,6 +139,6 @@ For languages with more forms, use the platform's plural rules (Android `PluralR
 
 These keep working exactly as before:
 
-- **Android:** `<plurals>`, `<string-array>`, strings with `<b>`/`<i>`/CDATA/HTML, `translatable="false"`, strings that reference other resources, `values-night`/`values-v21`-style variants. Also `hint`, `contentDescription` and other non-text attributes: the SDK's tags and `sbTextView` only set text. Set them from code if they should be remote.
+- **Android:** `<plurals>`, `<string-array>`, strings with `<b>`/`<i>`, CDATA or escaped HTML anywhere in the value, `translatable="false"`, strings that reference other resources, `values-night`/`values-car`/`values-v21`-style variants, and `product="…"` variants after the first one. Also `hint`, `contentDescription` and other non-text attributes: the SDK's tags and `sbTextView` only set text. Set them from code if they should be remote.
 - **iOS:** `.stringsdict`, String Catalog plural/device variations, `shouldTranslate: false`, `InfoPlist.strings`, and tables other than `Localizable` (the SDK's fallback reads only `Localizable`, so moving them to Stringboot loses their offline fallback).
-- **Web:** arrays, ICU `plural`/`select` messages, non-string values. The Web SDK has no local fallback, so the i18n files can stay for these while the rest moves to Stringboot.
+- **Web:** arrays, ICU messages with a type (`plural`, `select`, `number`, `date`), i18next formatting (`{{- name}}`, `{{date, datetime}}`), vue-i18n pipe plurals (`a | b`), non-string values. The Web SDK has no local fallback, so the i18n files can stay for these while the rest moves to Stringboot.

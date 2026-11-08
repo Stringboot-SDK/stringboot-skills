@@ -44,7 +44,7 @@ await StringBoot.initialize({
 });
 ```
 
-**React:** define the config at module level, so the SDK doesn't re-initialize on every render.
+**React:** define the config at module level. The hook compares configs by value, so this is for readability; a changed token or base URL re-initializes the SDK.
 
 ```tsx
 import { useStringBoot } from '@stringboot/web-sdk/react';
@@ -59,7 +59,7 @@ export function App() {
 }
 ```
 
-**Vue:** call `initialize()` in `main.ts` before `app.mount()`, and use the composable in section 3.
+**Vue:** `await StringBoot.initialize(...)` in `main.ts` before `app.mount()`, and use the composable in section 3.
 
 Periodic checks run every 60 seconds while the tab is visible (`refreshInterval`, minimum 60000, `0` disables).
 
@@ -70,13 +70,13 @@ Every read follows: experiment variant → selected language → the App's defau
 | API | Use | Updates live |
 | :--- | :--- | :--- |
 | `useString('key')`, `useStrings([...])` | React components | Yes |
-| `StringBoot.watch('key', cb)` | Vanilla/Vue; returns an unsubscribe function | Yes |
+| `StringBoot.watch('key', cb)` | Vanilla/Vue; returns an unsubscribe function. Bound to the language at subscribe time: re-subscribe on `onLanguageChange` | Yes, for that language |
 | `StringBoot.getCached('key')` | Synchronous; `undefined` if not in memory | No |
 | `await StringBoot.get('key')` | One-shot | No |
 
 Values can contain real line breaks (from `\n`). Render them with `white-space: pre-line`.
 
-**Vue composable:**
+**Vue composable** (follows language changes, which a single `watch` doesn't):
 
 ```ts
 import { ref, onScopeDispose } from 'vue';
@@ -84,16 +84,24 @@ import StringBoot from '@stringboot/web-sdk';
 
 export function useString(key: string) {
   const value = ref(StringBoot.getCached(key) ?? '');
-  onScopeDispose(StringBoot.watch(key, (v) => { value.value = v; }));
+  let stop = StringBoot.watch(key, (v) => { value.value = v; });
+  const offLang = StringBoot.onLanguageChange(() => {
+    stop();
+    value.value = StringBoot.getCached(key) ?? value.value;
+    stop = StringBoot.watch(key, (v) => { value.value = v; });
+  });
+  onScopeDispose(() => { stop(); offLang(); });
   return value;
 }
 ```
+
+For vanilla JS, apply the same re-subscribe pattern, or re-render on `onLanguageChange`.
 
 **Named placeholders** (`{name}`), shared with Android and iOS:
 
 ```ts
 export const fill = (s: string, args: Record<string, unknown>) =>
-  s.replace(/\{(\w+)\}/g, (m, k) => (k in args ? String(args[k]) : m));
+  s.replace(/\{([\w.]+)\}/g, (m, k) => (k in args ? String(args[k]) : m));
 ```
 
 ## 4. Converting existing code (i18next, react-intl, vue-i18n)
@@ -134,20 +142,26 @@ import { StringProvider } from '@stringboot/web-sdk';
 
 const server = new StringProvider();
 let ready: Promise<void> | null = null;
+const lastSync = new Map<string, number>();
 
 export async function getServerStrings(lang: string, keys: string[]) {
   ready ??= server.initialize({
     apiToken: process.env.NEXT_PUBLIC_STRINGBOOT_CLIENT_TOKEN!,
     defaultLanguage: 'en',
-    fetch: (url, init) => fetch(url, { ...init, cache: 'no-store' }),  // skip the Next.js fetch cache
+    // Revalidate the SDK's requests at most once a minute in the Next.js fetch cache
+    fetch: (url, init) => fetch(url, { ...init, next: { revalidate: 60 } } as RequestInit),
   });
   await ready;
-  await server.syncNow(lang).catch(() => undefined);
+  if (Date.now() - (lastSync.get(lang) ?? 0) > 60_000) {   // check each language at most once a minute
+    lastSync.set(lang, Date.now());
+    await server.syncNow(lang).catch(() => undefined);
+  }
   const values = await Promise.all(keys.map((k) => server.get(k, lang)));
   return Object.fromEntries(keys.map((k, i) => [k, values[i]]));
 }
 ```
 
+- `cache: 'no-store'` instead of `revalidate` makes App Router routes fully dynamic. Use it only when you need it.
 - To avoid hydration mismatches, render string UI after `initialized`, or pass server strings as props.
 - Raw values from `getCatalog()` need `unescapeString()` to match the browser. `get()` already unescapes.
 - Experiment keys: the server instance buckets with its own Device-ID. Render experiment keys on the client.

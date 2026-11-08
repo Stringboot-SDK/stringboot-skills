@@ -2,3 +2,4 @@
 "home.title" = "Home";
 "tab_profile" = "Profile";
 "greeting %@" = "Hello, %@";
+"octal" = "a\012b";
