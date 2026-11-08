@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
+    <string name="app_name" translatable="false">Demo</string>
+    <string name="welcomeMessage">Welcome to   Demo</string>
+    <string name="quoted">"  keep   spaces  "</string>
+    <string name="apostrophe">Don\'t stop\nnow</string>
+    <string name="ellipsis">Loading…</string>
+    <string name="at_sign">\@home</string>
+    <string name="ref">@string/app_name</string>
+    <string name="greeting">Hello, <xliff:g id="name">%1$s</xliff:g>!</string>
+    <string name="percent">100%% done</string>
+    <string name="bold">Get <b>50%</b> off</string>
+    <string name="cdata"><![CDATA[<i>hi</i>]]></string>
+    <string name="settings.title">Settings</string>
+    <plurals name="items"><item quantity="one">%d item</item><item quantity="other">%d items</item></plurals>
+    <string-array name="colors"><item>Red</item></string-array>
+</resources>

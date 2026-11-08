@@ -1,0 +1,4 @@
+/* Title */
+"home.title" = "Home";
+"tab_profile" = "Profile";
+"greeting %@" = "Hello, %@";

@@ -1,0 +1,1 @@
+<TextView android:text="@string/welcomeMessage" xmlns:android="http://schemas.android.com/apk/res/android"/>

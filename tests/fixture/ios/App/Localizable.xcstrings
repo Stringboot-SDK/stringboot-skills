@@ -1,0 +1,6 @@
+{ "sourceLanguage" : "en", "strings" : {
+  "Log in" : { "localizations" : { "fr" : { "stringUnit" : { "state" : "translated", "value" : "Connexion" } } } },
+  "items_count" : { "localizations" : { "en" : { "variations" : { "plural" : {} } } } },
+  "brand" : { "shouldTranslate" : false },
+  "home.title" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Home page" } } } }
+}, "version" : "1.0" }
