@@ -26,7 +26,7 @@ Ask your agent, for example:
 
 > Move our existing strings.xml and Localizable.strings to Stringboot.
 
-You need a Stringboot account, an App and a **Client Token** (`sb_…`) from the [dashboard](https://dashboard.stringboot.com). Documentation: https://docs.stringboot.com
+You need a Stringboot account, an App and a **Client Token** (`sb_…`) from the [dashboard](https://dashboard.stringboot.com). Guide: [AI Coding Agents](https://docs.stringboot.com/ai-coding-agents). Documentation: https://docs.stringboot.com
 
 ### The extractor on its own
 
